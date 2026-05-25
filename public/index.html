@@ -115,6 +115,78 @@
     textarea:focus { border-color: var(--accent); }
     textarea::placeholder { color: var(--muted); }
 
+    /* Diff preview — GitHub style */
+    .diff-preview {
+      margin-top: 14px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .diff-preview-header {
+      padding: 8px 14px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .diff-preview-header .stat-add { color: var(--accent-2); }
+    .diff-preview-header .stat-del { color: var(--danger); }
+    .diff-body {
+      max-height: 280px;
+      overflow: auto;
+      padding: 8px 0;
+    }
+    .diff-line {
+      display: flex;
+      padding: 0 14px 0 0;
+      white-space: pre;
+    }
+    .diff-line .ln {
+      display: inline-block;
+      width: 40px;
+      flex-shrink: 0;
+      text-align: right;
+      padding-right: 12px;
+      color: var(--muted);
+      opacity: 0.6;
+      user-select: none;
+      font-size: 11px;
+      padding-top: 1px;
+    }
+    .diff-line .marker {
+      display: inline-block;
+      width: 14px;
+      flex-shrink: 0;
+      text-align: center;
+      font-weight: 700;
+      user-select: none;
+    }
+    .diff-line .content {
+      flex: 1;
+      min-width: 0;
+      overflow-wrap: break-word;
+    }
+    .diff-line.add { background: rgba(126, 231, 135, 0.08); }
+    .diff-line.add .marker { color: var(--accent-2); }
+    .diff-line.add .content { color: #aff5b4; }
+    .diff-line.del { background: rgba(248, 81, 73, 0.08); }
+    .diff-line.del .marker { color: var(--danger); }
+    .diff-line.del .content { color: #ffb3ad; }
+    .diff-line.hunk { background: rgba(88, 166, 255, 0.06); }
+    .diff-line.hunk .content { color: var(--accent); }
+    .diff-line.meta .content { color: var(--muted); font-style: italic; }
+    .diff-line.context .content { color: var(--text); }
+
     .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
     button.primary {
       background: linear-gradient(135deg, var(--accent), #1f6feb);
@@ -292,6 +364,17 @@ diff --git a/src/auth.js b/src/auth.js
 +  return db.query('SELECT * FROM users WHERE name=$1', [user]);
  }"
       ></textarea>
+      <div class="diff-preview" id="diffPreview" style="display:none;">
+        <div class="diff-preview-header">
+          <span>Diff preview</span>
+          <span>
+            <span class="stat-add" id="statAdd">+0</span>
+            &nbsp;&nbsp;
+            <span class="stat-del" id="statDel">−0</span>
+          </span>
+        </div>
+        <div class="diff-body" id="diffBody"></div>
+      </div>
       <div class="actions">
         <button class="primary" id="goBtn" onclick="generate()">Generate ✨</button>
         <button class="ghost" onclick="clearAll()">Clear</button>
@@ -418,6 +501,79 @@ diff --git a/src/auth.js b/src/auth.js
       const n = $('diff').value.length;
       $('charHint').textContent = `${n.toLocaleString()} chars${n > 12000 ? ' (max 12,000)' : ''}`;
       $('charHint').style.color = n > 12000 ? 'var(--danger)' : 'var(--muted)';
+      renderDiffPreview($('diff').value);
+    }
+
+    function renderDiffPreview(text) {
+      const preview = $('diffPreview');
+      const body = $('diffBody');
+      const trimmed = text.trim();
+
+      if (!trimmed || trimmed.length < 5) {
+        preview.style.display = 'none';
+        return;
+      }
+
+      const lines = text.split('\n');
+      let added = 0;
+      let removed = 0;
+      let oldLn = 0;
+      let newLn = 0;
+      const html = [];
+
+      for (const raw of lines) {
+        let cls = 'context';
+        let marker = ' ';
+        let lnLabel = '';
+
+        if (raw.startsWith('@@')) {
+          cls = 'hunk';
+          marker = ' ';
+          const m = raw.match(/-(\d+)(?:,\d+)?\s+\+(\d+)/);
+          if (m) {
+            oldLn = parseInt(m[1], 10);
+            newLn = parseInt(m[2], 10);
+          }
+          lnLabel = '';
+        } else if (raw.startsWith('diff ') || raw.startsWith('index ') || raw.startsWith('---') || raw.startsWith('+++')) {
+          cls = 'meta';
+          marker = ' ';
+          lnLabel = '';
+        } else if (raw.startsWith('+')) {
+          cls = 'add';
+          marker = '+';
+          added++;
+          lnLabel = String(newLn++);
+        } else if (raw.startsWith('-')) {
+          cls = 'del';
+          marker = '−';
+          removed++;
+          lnLabel = String(oldLn++);
+        } else if (raw.startsWith(' ') || raw === '') {
+          cls = 'context';
+          marker = ' ';
+          if (oldLn || newLn) {
+            lnLabel = String(newLn);
+            oldLn++;
+            newLn++;
+          }
+        }
+
+        const content = (raw.startsWith('+') || raw.startsWith('-')) ? raw.slice(1) : raw.startsWith(' ') ? raw.slice(1) : raw;
+
+        html.push(
+          `<div class="diff-line ${cls}">` +
+          `<span class="ln">${lnLabel}</span>` +
+          `<span class="marker">${marker}</span>` +
+          `<span class="content">${escapeHtml(content) || ' '}</span>` +
+          `</div>`
+        );
+      }
+
+      $('statAdd').textContent = `+${added}`;
+      $('statDel').textContent = `−${removed}`;
+      body.innerHTML = html.join('');
+      preview.style.display = 'block';
     }
 
     $('diff').addEventListener('input', updateCharCount);
