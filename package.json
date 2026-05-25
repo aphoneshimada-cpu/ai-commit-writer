@@ -1,0 +1,16 @@
+{
+  "name": "ai-commit-writer",
+  "version": "1.0.0",
+  "description": "Generate clean conventional commit messages from a git diff. Powered by Xiaomi MiMo.",
+  "main": "api/commit.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/commit.js"
+  },
+  "keywords": ["git", "commit", "ai", "mimo", "xiaomi", "developer-tools", "conventional-commits"],
+  "author": "Landcat",
+  "license": "MIT",
+  "engines": {
+    "node": "20.x"
+  }
+}

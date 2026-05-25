@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Commit Writer — Conventional commit messages from your diff</title>
+  <meta name="description" content="Paste a git diff. Get 3 clean conventional commit messages in seconds. Powered by Xiaomi MiMo." />
+  <meta property="og:title" content="AI Commit Writer" />
+  <meta property="og:description" content="Stop writing 'update stuff' commits. Get clean conventional commits in 2 seconds." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📝</text></svg>" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #0d1117;
+      --bg-2: #161b22;
+      --card: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-2: #7ee787;
+      --accent-glow: rgba(88, 166, 255, 0.35);
+      --code: #f0883e;
+      --danger: #f85149;
+      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 15% 0%, rgba(88, 166, 255, 0.12), transparent 50%),
+        radial-gradient(circle at 85% 100%, rgba(126, 231, 135, 0.08), transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .container { max-width: 920px; margin: 0 auto; padding: 40px 20px; position: relative; z-index: 1; }
+
+    header { text-align: center; margin-bottom: 44px; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.3);
+      padding: 6px 14px; border-radius: 100px;
+      font-size: 13px; color: var(--accent);
+      margin-bottom: 22px;
+    }
+    .badge .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #4ade80; box-shadow: 0 0 8px #4ade80;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 {
+      font-size: clamp(36px, 5.5vw, 56px);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+      letter-spacing: -1.5px;
+    }
+    .tagline { color: var(--muted); font-size: clamp(15px, 1.8vw, 18px); max-width: 580px; margin: 0 auto; }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+    .label { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+    .options { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .options select, .options input {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+    }
+    .options select:focus, .options input:focus { border-color: var(--accent); }
+    .options input { width: 130px; }
+    .options input::placeholder { color: var(--muted); }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--mono);
+      line-height: 1.55;
+      resize: vertical;
+      outline: none;
+      tab-size: 2;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+
+    .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+    button.primary {
+      background: linear-gradient(135deg, var(--accent), #1f6feb);
+      border: none;
+      border-radius: 10px;
+      padding: 12px 26px;
+      color: white;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 6px 20px var(--accent-glow);
+      font-family: inherit;
+    }
+    button.primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px var(--accent-glow); }
+    button.primary:active { transform: translateY(0); }
+    button.primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    button.ghost:hover { border-color: var(--accent); }
+
+    .hint { color: var(--muted); font-size: 13px; }
+
+    /* Results */
+    .results { display: none; }
+    .results.show { display: block; animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .candidate {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 12px;
+      position: relative;
+      transition: border-color 0.15s;
+    }
+    .candidate:hover { border-color: var(--accent); }
+    .candidate.best {
+      border-color: rgba(126, 231, 135, 0.4);
+      background: linear-gradient(135deg, rgba(126, 231, 135, 0.04), rgba(88, 166, 255, 0.02));
+    }
+    .candidate-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+      font-size: 12px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600;
+    }
+    .candidate-rank { display: flex; align-items: center; gap: 6px; }
+    .candidate-rank .star { color: var(--accent-2); }
+    .candidate-msg {
+      font-family: var(--mono);
+      font-size: 14px;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .candidate-actions {
+      display: flex; gap: 8px; margin-top: 12px;
+    }
+    .candidate-actions button {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 12px;
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .candidate-actions button:hover { border-color: var(--accent); }
+
+    .meta {
+      margin-top: 14px;
+      display: flex; gap: 14px;
+      font-size: 12px; color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .meta .mode-pill {
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(126, 231, 135, 0.1);
+      color: var(--accent-2);
+      border: 1px solid rgba(126, 231, 135, 0.2);
+    }
+    .meta .mode-pill.demo { background: rgba(139, 148, 158, 0.1); color: var(--muted); border-color: var(--border); }
+
+    .error {
+      background: rgba(248, 81, 73, 0.08);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+      color: #ffa198;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-top: 12px;
+    }
+
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 30px 0 40px; }
+    .feature {
+      padding: 18px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .feature .icon { font-size: 22px; margin-bottom: 8px; }
+    .feature h4 { font-size: 14px; margin-bottom: 4px; }
+    .feature p { font-size: 13px; color: var(--muted); }
+
+    footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; border-top: 1px solid var(--border); }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Sample diffs row */
+    .samples { font-size: 13px; color: var(--muted); margin-top: 10px; }
+    .samples a { color: var(--accent); text-decoration: none; cursor: pointer; margin-right: 14px; }
+    .samples a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">
+        <span class="dot"></span>
+        Powered by Xiaomi MiMo
+      </div>
+      <h1>AI Commit Writer</h1>
+      <p class="tagline">
+        Paste a git diff. Get 3 clean conventional commit messages in 2 seconds.
+        Stop typing "update stuff."
+      </p>
+    </header>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="label">Your diff</span>
+        <div class="options">
+          <select id="style" title="Message style">
+            <option value="normal">Normal</option>
+            <option value="short">Short (subject only)</option>
+            <option value="verbose">Verbose (with body)</option>
+          </select>
+          <input id="scope" type="text" placeholder="scope (optional)" maxlength="30" />
+        </div>
+      </div>
+      <textarea
+        id="diff"
+        placeholder="Paste output of: git diff --staged
+
+Or any unified diff:
+
+diff --git a/src/auth.js b/src/auth.js
+@@ -10,5 +10,9 @@
+ function login(user, pass) {
+-  return db.query('SELECT * FROM users WHERE name=' + user);
++  if (!user || !pass) throw new Error('credentials required');
++  return db.query('SELECT * FROM users WHERE name=$1', [user]);
+ }"
+      ></textarea>
+      <div class="actions">
+        <button class="primary" id="goBtn" onclick="generate()">Generate ✨</button>
+        <button class="ghost" onclick="clearAll()">Clear</button>
+        <span class="hint" id="charHint">0 chars</span>
+      </div>
+      <div class="samples">
+        Try sample:
+        <a onclick="loadSample('feature')">new feature</a>
+        <a onclick="loadSample('fix')">bug fix</a>
+        <a onclick="loadSample('refactor')">refactor</a>
+        <a onclick="loadSample('docs')">docs</a>
+      </div>
+    </div>
+
+    <div class="results" id="results"></div>
+
+    <div class="features">
+      <div class="feature">
+        <div class="icon">🎯</div>
+        <h4>Conventional Commits</h4>
+        <p>Strict spec compliance: feat, fix, docs, refactor, with optional scope and body.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">⚡</div>
+        <h4>3 candidates</h4>
+        <p>Get ranked alternatives. Pick the best, copy with one click, ship.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🔒</div>
+        <h4>No login</h4>
+        <p>Paste, generate, copy. Diff never stored, no signup, no telemetry.</p>
+      </div>
+      <div class="feature">
+        <div class="icon">🧠</div>
+        <h4>MiMo brain</h4>
+        <p>Reads your diff context, picks the right type, writes imperative-mood subjects.</p>
+      </div>
+    </div>
+
+    <footer>
+      Built by <a href="https://github.com/aphoneshimada-cpu">@aphoneshimada-cpu</a>
+      · Powered by <a href="https://100t.xiaomimimo.com" target="_blank">Xiaomi MiMo</a>
+      · <a href="https://github.com/aphoneshimada-cpu/ai-commit-writer" target="_blank">View source</a>
+    </footer>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const SAMPLES = {
+      feature: `diff --git a/src/api/users.js b/src/api/users.js
+@@ -45,6 +45,15 @@ router.get('/users', async (req, res) => {
+   res.json(users);
+ });
+
++router.get('/users/:id/posts', async (req, res) => {
++  const posts = await db.posts.findMany({
++    where: { authorId: req.params.id },
++    orderBy: { createdAt: 'desc' },
++    take: 20,
++  });
++  res.json(posts);
++});
++
+ module.exports = router;`,
+
+      fix: `diff --git a/src/utils/date.js b/src/utils/date.js
+@@ -12,7 +12,7 @@ function formatDate(d) {
+   if (!d) return '';
+-  return d.toISOString().slice(0, 10);
++  return d instanceof Date ? d.toISOString().slice(0, 10) : '';
+ }`,
+
+      refactor: `diff --git a/src/auth.js b/src/auth.js
+@@ -1,18 +1,12 @@
+-function checkAuth(req, res, next) {
+-  const token = req.headers.authorization;
+-  if (!token) return res.status(401).json({ error: 'no token' });
+-  try {
+-    const decoded = jwt.verify(token, SECRET);
+-    req.user = decoded;
+-    next();
+-  } catch {
+-    res.status(401).json({ error: 'invalid token' });
+-  }
+-}
++const checkAuth = require('./middleware/auth');
+
+ module.exports = checkAuth;`,
+
+      docs: `diff --git a/README.md b/README.md
+@@ -10,3 +10,15 @@
+ ## Install
+ npm install
+
++## API
++
++### POST /api/login
++Authenticate user with email + password.
++
++\`\`\`bash
++curl -X POST /api/login -d '{"email":"x@y.com","password":"..."}'
++\`\`\`
++
++Returns JWT token in \`Authorization\` header.
++`,
+    };
+
+    function loadSample(key) {
+      $('diff').value = SAMPLES[key];
+      updateCharCount();
+      $('diff').focus();
+    }
+
+    function clearAll() {
+      $('diff').value = '';
+      $('scope').value = '';
+      $('results').className = 'results';
+      $('results').innerHTML = '';
+      updateCharCount();
+    }
+
+    function updateCharCount() {
+      const n = $('diff').value.length;
+      $('charHint').textContent = `${n.toLocaleString()} chars${n > 12000 ? ' (max 12,000)' : ''}`;
+      $('charHint').style.color = n > 12000 ? 'var(--danger)' : 'var(--muted)';
+    }
+
+    $('diff').addEventListener('input', updateCharCount);
+
+    $('diff').addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        generate();
+      }
+    });
+
+    async function generate() {
+      const diff = $('diff').value.trim();
+      const style = $('style').value;
+      const scope = $('scope').value.trim();
+      const btn = $('goBtn');
+      const results = $('results');
+
+      if (!diff) {
+        results.className = 'results show';
+        results.innerHTML = '<div class="error">Paste a diff first.</div>';
+        return;
+      }
+      if (diff.length > 12000) {
+        results.className = 'results show';
+        results.innerHTML = '<div class="error">Diff too large (max 12,000 chars). Trim it down.</div>';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Writing...';
+      results.className = 'results show';
+      results.innerHTML = '<div style="color:var(--muted);text-align:center;padding:24px;">Reading the diff, picking the right type, writing imperative-mood subjects...</div>';
+
+      try {
+        const body = { diff, style };
+        if (scope) body.scope = scope;
+
+        const res = await fetch('/api/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          results.innerHTML = `<div class="error">${data.error || 'Something broke. Try again.'}</div>`;
+          return;
+        }
+
+        renderResults(data);
+      } catch (err) {
+        results.innerHTML = `<div class="error">Network hiccup. Try again.</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Generate ✨';
+      }
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function renderResults(data) {
+      const results = $('results');
+      const candidates = data.candidates || [];
+      if (candidates.length === 0) {
+        results.innerHTML = '<div class="error">No candidates returned. Try a smaller diff.</div>';
+        return;
+      }
+
+      const modeLabel = data.mode === 'mimo'
+        ? '<span class="mode-pill">⚡ Live MiMo</span>'
+        : '<span class="mode-pill demo">Demo (waiting on MiMo key)</span>';
+
+      const warning = data.warning ? `<span style="color:var(--code);">⚠ ${data.warning}</span>` : '';
+
+      const html = candidates.map((msg, i) => `
+        <div class="candidate ${i === 0 ? 'best' : ''}">
+          <div class="candidate-header">
+            <div class="candidate-rank">
+              ${i === 0 ? '<span class="star">★</span>' : '#'}
+              <span>Candidate ${i + 1}${i === 0 ? ' — recommended' : ''}</span>
+            </div>
+            <span>${msg.split('\n')[0].length} chars subject</span>
+          </div>
+          <div class="candidate-msg">${escapeHtml(msg)}</div>
+          <div class="candidate-actions">
+            <button onclick="copyMsg(this, ${i})">📋 Copy</button>
+            <button onclick="copyAsCommand(this, ${i})">$ git commit -m</button>
+          </div>
+        </div>
+      `).join('');
+
+      results.innerHTML = html + `<div class="meta">${modeLabel} ${warning} <span>${candidates.length} candidates · ${data.powered_by}</span></div>`;
+
+      window._lastCandidates = candidates;
+    }
+
+    function copyMsg(btn, idx) {
+      const msg = window._lastCandidates[idx];
+      navigator.clipboard.writeText(msg);
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✓ Copied';
+      setTimeout(() => { btn.innerHTML = orig; }, 1500);
+    }
+
+    function copyAsCommand(btn, idx) {
+      const msg = window._lastCandidates[idx];
+      const lines = msg.split('\n');
+      const subject = lines[0];
+      const body = lines.slice(2).join('\n').trim();
+      const cmd = body
+        ? `git commit -m ${JSON.stringify(subject)} -m ${JSON.stringify(body)}`
+        : `git commit -m ${JSON.stringify(subject)}`;
+      navigator.clipboard.writeText(cmd);
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✓ Copied';
+      setTimeout(() => { btn.innerHTML = orig; }, 1500);
+    }
+
+    updateCharCount();
+  </script>
+</body>
+</html>
